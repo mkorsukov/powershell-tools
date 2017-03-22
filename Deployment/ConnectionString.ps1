@@ -3,9 +3,9 @@
 
 param
 (
-    [string]$file,
-    [string]$name,
-    [string]$value
+    [string] $file,
+    [string] $name,
+    [string] $value
 )
 
 Clear-Host
