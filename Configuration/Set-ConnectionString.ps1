@@ -8,7 +8,7 @@ param
 )
 
 Clear-Host
-Write-Host "Connection String Updater 1.0 : Copyright (C) Maxim Korsukov : 2016-08-29"
+Write-Host "Connection String Updater 1.0 : Copyright (C) Maxim Korsukov : 2016-08-29" -ForegroundColor Yellow
 
 if (!$fileName)
 {

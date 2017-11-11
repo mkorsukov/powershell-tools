@@ -7,7 +7,7 @@ param
 )
 
 Clear-Host
-Write-Host "Folder Remover 1.0 : Copyright (C) Maxim Korsukov : 2017-08-01"
+Write-Host "Folder Remover 1.0 : Copyright (C) Maxim Korsukov : 2017-08-01" -ForegroundColor Yellow
 
 if (!$folderPath)
 {

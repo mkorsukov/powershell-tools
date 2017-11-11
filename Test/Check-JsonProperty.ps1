@@ -8,7 +8,7 @@ param
 )
 
 Clear-Host
-Write-Host "JSON Value Checker 1.0 : Copyright (C) Maxim Korsukov : 2017-02-27"
+Write-Host "JSON Value Checker 1.0 : Copyright (C) Maxim Korsukov : 2017-02-27" -ForegroundColor Yellow
 
 if (!$url)
 {
