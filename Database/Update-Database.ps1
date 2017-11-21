@@ -137,16 +137,23 @@ if ($schemaFile)
 {
     Try
     {
-        $script = Get-Content $schemaFile -Raw -Encoding UTF8
-
-        Run-Sql $connectionString $script
-
-        if ($useVersioning)
+        if ($existingPatches -notcontains $([System.IO.Path]::GetFileName($schemaFile)))
         {
-            Add-PatchInfo $connectionString $([System.IO.Path]::GetFileName($schemaFile))
-        }
+            $script = Get-Content $schemaFile -Raw -Encoding UTF8
 
-        Write-Host "Database schema script was applied successfully"
+            Run-Sql $connectionString $script
+
+            if ($useVersioning)
+            {
+                Add-PatchInfo $connectionString $([System.IO.Path]::GetFileName($schemaFile))
+            }
+
+            Write-Host "Database schema script was applied successfully"
+        }
+        else
+        {
+            Write-Host "Database schema script was skipped"
+        }
     }
     Catch [Exception]
     {
