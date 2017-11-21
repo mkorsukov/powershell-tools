@@ -40,31 +40,6 @@ function Run-Sql([string] $connectionString, [string] $script)
     $connection.Dispose()
 }
 
-function Get-PatchesTableExistence([string] $connectionString)
-{
-    $connection = New-Object System.Data.SQLClient.SQLConnection
-    $connection.ConnectionString = $connectionString
-    $connection.Open()
-
-    $command = New-Object System.Data.SqlClient.SqlCommand
-    $command.Connection = $connection
-    $command.CommandType = [System.Data.CommandType]::Text
-    $command.CommandText = "
-        if (exists(select * from information_schema.tables where [TABLE_NAME] = N'_Patches'))
-            select 1;
-        else
-            select 0;"
-
-    [int]$result = $command.ExecuteScalar()
-
-    $command.Dispose()
-
-    $connection.Close()
-    $connection.Dispose()
-
-    return $result
-}
-
 function Get-ExistingPatches([string] $connectionString)
 {
     $connection = New-Object System.Data.SQLClient.SQLConnection
@@ -93,65 +68,9 @@ function Get-ExistingPatches([string] $connectionString)
     return $result
 }
 
-function Apply-Schema([string] $connectionString, [string] $schemaFile, [bool] $useVersioning)
+function Add-PatchInfo([string] $connectionString, [string] $name)
 {
-    $script = Get-Content $schemaFile -Raw -Encoding UTF8
-
-    Run-Sql $connectionString $script
-
-    if ($useVersioning)
-    {
-        $script = "
-            if (not exists(select * from information_schema.tables where [TABLE_NAME] = N'_Patches'))
-            begin
-                create table [_Patches] ([ID] int identity(1,1) not null, [Name] varchar(255) not null, [User] varchar(255) not null, [Date] datetimeoffset(0) not null, constraint [PK__Patches_ID] primary key ([ID]));
-                create unique nonclustered index [IX__Patches_Name] on [_Patches] ([Name]);
-            end"
-
-        Run-Sql $connectionString $script
-
-        Run-Sql $connectionString "insert into [_Patches] ([Name], [User], [Date]) values ('$([System.IO.Path]::GetFileName($schemaFile))', original_login(), sysdatetimeoffset());"
-    }
-}
-
-function Apply-Patches([string] $connectionString, [string] $patchFolder, [bool] $useVersioning)
-{
-    $existingPatches = @()
-
-    if ($useVersioning)
-    {
-        if ((Get-PatchesTableExistence $connectionString) -eq 0)
-        {
-            Write-Host "Required [_Patches] database table doesn't exist" -ForegroundColor Red
-            Exit 1
-        }
-
-        $existingPatches = Get-ExistingPatches $connectionString
-    }
-
-    $patchFiles = Get-ChildItem -Path $patchFolder -Include "*.sql" -File -Name
-
-    foreach ($patchFile in $patchFiles)
-    {
-        if ($existingPatches -notcontains $patchFile)
-        {
-            $filePath = Join-Path $patchFolder $patchFile
-            $script = Get-Content $filePath -Raw -Encoding UTF8
-
-            Write-Host "`tApplying patch: $patchFile"
-
-            Run-Sql $connectionString $script
-
-            if ($useVersioning)
-            {
-                Run-Sql $connectionString "insert into [_Patches] ([Name], [User], [Date]) values ('$patchFile', original_login(), sysdatetimeoffset());"
-            }
-        }
-        else
-        {
-            Write-Host "`tSkipping patch: $patchFile"
-        }
-    }
+    Run-Sql $connectionString "insert into [_Patches] ([Name], [User], [Date]) values ('$name', original_login(), sysdatetimeoffset());"
 }
 
 Clear-Host
@@ -163,13 +82,13 @@ if (!$connectionString)
     Exit 1
 }
 
-if ($schemaFile -and !(Test-Path $schemaFile))
+if ($schemaFile -and !(Test-Path $schemaFile -PathType Leaf))
 {
     Write-Host "Specified database schema file doesn't exist" -ForegroundColor Red
     Exit 1
 }
 
-if ($patchFolder -and !(Test-Path $patchFolder))
+if ($patchFolder -and !(Test-Path $patchFolder -PathType Container))
 {
     Write-Host "Specified database patch folder doesn't exist" -ForegroundColor Red
     Exit 1
@@ -190,13 +109,44 @@ if ($schemaFile -or $patchFolder)
     }
 }
 
+$existingPatches = @()
+
+if ($useVersioning)
+{
+    $script = "
+        if (not exists(select * from information_schema.tables where [TABLE_NAME] = N'_Patches'))
+        begin
+            create table [_Patches]
+            (
+                [ID] int identity(1,1) not null,
+                [Name] varchar(255) not null,
+                [User] varchar(255) not null,
+                [Date] datetimeoffset(0) not null,
+
+                constraint [PK__Patches_ID] primary key ([ID])
+            );
+            create unique nonclustered index [IX__Patches_Name] on [_Patches] ([Name]);
+        end"
+
+    Run-Sql $connectionString $script
+
+    $existingPatches = Get-ExistingPatches $connectionString
+}
+
 if ($schemaFile)
 {
     Try
     {
-        Apply-Schema $connectionString $schemaFile $useVersioning
+        $script = Get-Content $schemaFile -Raw -Encoding UTF8
 
-        Write-Host "Database schema script was executed successfully"
+        Run-Sql $connectionString $script
+
+        if ($useVersioning)
+        {
+            Add-PatchInfo $connectionString $([System.IO.Path]::GetFileName($schemaFile))
+        }
+
+        Write-Host "Database schema script was applied successfully"
     }
     Catch [Exception]
     {
@@ -210,9 +160,31 @@ if ($patchFolder)
 {
     Try
     {
-        Apply-Patches $connectionString $patchFolder $useVersioning
+        $patchFiles = Get-ChildItem -Path $patchFolder -Include "*.sql" -File -Name
 
-        Write-Host "Database patching scripts were executed successfully"
+        foreach ($patchFile in $patchFiles)
+        {
+            if ($existingPatches -notcontains $patchFile)
+            {
+                $filePath = Join-Path $patchFolder $patchFile
+                $script = Get-Content $filePath -Raw -Encoding UTF8
+
+                Write-Host "`tApplying patch: $patchFile"
+
+                Run-Sql $connectionString $script
+
+                if ($useVersioning)
+                {
+                    Add-PatchInfo $connectionString $patchFile
+                }
+            }
+            else
+            {
+                Write-Host "`tSkipping patch: $patchFile"
+            }
+        }
+
+        Write-Host "Database patching scripts were applied successfully"
     }
     Catch [Exception]
     {
