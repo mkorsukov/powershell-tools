@@ -1,9 +1,17 @@
 ﻿# Configuration Updater
 
+[CmdletBinding()]
 param
 (
+    [Parameter(Mandatory = $true)]
+    [ValidateScript({ Test-Path -Path $_ })]
     [string] $fileName,
+
+    [Parameter(Mandatory = $true)]
+    [ValidateScript({ $_ -match "@" })]
     [string] $path,
+
+    [Parameter(Mandatory = $true)]
     [string] $value
 )
 
@@ -44,30 +52,14 @@ function Create-MissingElement([xml] $document, [string[]] $elementNames, [strin
 Clear-Host
 Write-Host "Configuration Updater 1.0 : Copyright (C) Maxim Korsukov : 2017-11-10" -ForegroundColor Yellow
 
-if (!$fileName)
-{
-    Write-Host "Required configuration file name/path is not specified" -ForegroundColor Red
-    Exit 1
-}
-
-if (!$path)
-{
-    Write-Host "Required configuration path is not specified" -ForegroundColor Red
-    Exit 1
-}
-
-if (!$value)
-{
-    Write-Host "Required configuration value is not specified" -ForegroundColor Red
-    Exit 1
-}
+Exit 0
 
 $elementNames = @()
 $attributeName = ""
 
 foreach ($part in $path.Split("/", [System.StringSplitOptions]::RemoveEmptyEntries))
 {
-    if ($part.Contains("@") -eq $false)
+    if ($part -notmatch "@")
     {
         $elementNames += $part
     }

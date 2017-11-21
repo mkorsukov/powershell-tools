@@ -1,10 +1,23 @@
 # Database Updater
 
+[CmdletBinding()]
 param
 (
+    [Parameter(Mandatory = $true)]
+    [ValidateScript({ $_ -match "Data Source=" })]
     [string] $connectionString,
+
+    [Parameter(Mandatory = $true)]
+    [AllowNull()]
+    [ValidateScript({ Test-Path -Path $_ })]
     [string] $schemaFile = $null,
+
+    [Parameter(Mandatory = $true)]
+    [AllowNull()]
+    [ValidateScript({ Test-Path -Path $_ -PathType Container })]
     [string] $patchFolder = $null,
+
+    [Parameter(Mandatory = $false)]
     [bool] $useVersioning = $true
 )
 
@@ -55,7 +68,7 @@ function Get-PatchesTableExistence([string] $connectionString)
         else
             select 0;"
 
-    [int]$result = $command.ExecuteScalar()
+    [int] $result = $command.ExecuteScalar()
 
     $command.Dispose()
 
@@ -104,7 +117,15 @@ function Apply-Schema([string] $connectionString, [string] $schemaFile, [bool] $
         $script = "
             if (not exists(select * from information_schema.tables where [TABLE_NAME] = N'_Patches'))
             begin
-                create table [_Patches] ([ID] int identity(1,1) not null, [Name] varchar(255) not null, [User] varchar(255) not null, [Date] datetimeoffset(0) not null, constraint [PK__Patches_ID] primary key ([ID]));
+                create table [_Patches]
+                (
+                    [ID] int identity(1,1) not null,
+                    [Name] varchar(255) not null,
+                    [User] varchar(255) not null,
+                    [Date] datetimeoffset(0) not null,
+
+                    constraint [PK__Patches_ID] primary key ([ID])
+                );
                 create unique nonclustered index [IX__Patches_Name] on [_Patches] ([Name]);
             end"
 
@@ -156,6 +177,8 @@ function Apply-Patches([string] $connectionString, [string] $patchFolder, [bool]
 
 Clear-Host
 Write-Host "Database Updater 1.0 : Copyright (C) Maxim Korsukov : 2017-10-22" -ForegroundColor Yellow
+
+Exit 0
 
 if (!$connectionString)
 {
