@@ -1,10 +1,18 @@
 # Database Updater
 
+[CmdletBinding()]
 param
 (
+    [Parameter(Mandatory = $true)]
+    [ValidateScript({ $_.Contains("data source") })]
     [string] $connectionString,
+
+    [ValidateScript({ If (!$_) { Test-Path -Path $_ -PathType Leaf } else { $true } })]
     [string] $schemaFile = $null,
+
+    [ValidateScript({ If (!$_) { Test-Path -Path $_ -PathType Container } else { $true } })]
     [string] $patchFolder = $null,
+
     [bool] $useVersioning = $true
 )
 
@@ -76,22 +84,14 @@ function Add-PatchInfo([string] $connectionString, [string] $name)
 Clear-Host
 Write-Host "Database Updater 1.0 : Copyright (C) Maxim Korsukov : 2017-10-22" -ForegroundColor Yellow
 
-if (!$connectionString)
-{
-    Write-Host "Required database connection string is not specified" -ForegroundColor Red
-    Exit 1
-}
-
 if ($schemaFile -and !(Test-Path $schemaFile -PathType Leaf))
 {
-    Write-Host "Specified database schema file doesn't exist" -ForegroundColor Red
-    Exit 1
+    throw "Specified database schema file doesn't exist"
 }
 
 if ($patchFolder -and !(Test-Path $patchFolder -PathType Container))
 {
-    Write-Host "Specified database patch folder doesn't exist" -ForegroundColor Red
-    Exit 1
+    throw "Specified database patch folder doesn't exist"
 }
 
 if ($schemaFile -or $patchFolder)
@@ -104,14 +104,15 @@ if ($schemaFile -or $patchFolder)
     Catch
     {
         Write-Host "Unable to establish database connection!" -ForegroundColor Red
-        Echo $_.Exception | format-list -force
+        Echo $_.Exception | Format-List -Force
+
         Exit 1
     }
 }
 
 $existingPatches = @()
 
-if ($useVersioning)
+if (($schemaFile -or $patchFolder) -and $useVersioning)
 {
     $script = "
         if (not exists(select * from information_schema.tables where [TABLE_NAME] = N'_Patches'))
@@ -137,7 +138,9 @@ if ($schemaFile)
 {
     Try
     {
-        if ($existingPatches -notcontains $([System.IO.Path]::GetFileName($schemaFile)))
+        $scriptFile = [System.IO.Path]::GetFileName($schemaFile)
+
+        if ($existingPatches -notcontains $scriptFile)
         {
             $script = Get-Content $schemaFile -Raw -Encoding UTF8
 
@@ -145,7 +148,7 @@ if ($schemaFile)
 
             if ($useVersioning)
             {
-                Add-PatchInfo $connectionString $([System.IO.Path]::GetFileName($schemaFile))
+                Add-PatchInfo $connectionString $scriptFile
             }
 
             Write-Host "Database schema script was applied successfully"
@@ -158,7 +161,8 @@ if ($schemaFile)
     Catch [Exception]
     {
         Write-Host "Unable to execute database schema script!" -ForegroundColor Red
-        Echo $_.Exception | format-list -force
+        Echo $_.Exception | Format-List -Force
+
         Exit 1
     }
 }
@@ -196,10 +200,12 @@ if ($patchFolder)
     Catch [Exception]
     {
         Write-Host "Unable to execute database patching scripts!" -ForegroundColor Red
-        Echo $_.Exception | format-list -force
+        Echo $_.Exception | Format-List -Force
+
         Exit 1
     }
 }
 
 Write-Host "OK" -ForegroundColor Green
+
 Exit 0

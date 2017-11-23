@@ -1,32 +1,20 @@
 ﻿# JSON Value Checker
 
+[CmdletBinding()]
 param
 (
+    [Parameter(Mandatory = $true)]
     [string] $url,
+
+    [Parameter(Mandatory = $true)]
     [string] $property,
+
+    [Parameter(Mandatory = $true)]
     [string] $value
 )
 
 Clear-Host
 Write-Host "JSON Value Checker 1.0 : Copyright (C) Maxim Korsukov : 2017-02-27" -ForegroundColor Yellow
-
-if (!$url)
-{
-    Write-Host "Required [URL] is not specified" -ForegroundColor Red
-    Exit 1
-}
-
-if (!$property)
-{
-    Write-Host "Required [property] is not specified" -ForegroundColor Red
-    Exit 1
-}
-
-if (!$value)
-{
-    Write-Host "Required [value] is not specified" -ForegroundColor Red
-    Exit 1
-}
 
 Try
 {
@@ -43,11 +31,13 @@ Try
     }
 
     Write-Host "OK" -ForegroundColor Green
+
     Exit 0
 }
 Catch [Exception]
 {
     Write-Host "Unable to get the version information!" -ForegroundColor Red
-    Echo $_.Exception | format-list -force
+    Echo $_.Exception | Format-List -Force
+
     Exit 1
 }
