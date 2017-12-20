@@ -16,12 +16,12 @@ param
     [bool] $useVersioning = $true
 )
 
-function Check-Connection([string] $connectionString)
+function Test-SqlConnection([string] $connectionString)
 {
     Run-Sql $connectionString "select @@version;"
 }
 
-function Run-Sql([string] $connectionString, [string] $script)
+function Invoke-Sql([string] $connectionString, [string] $script)
 {
     $connection = New-Object System.Data.SQLClient.SQLConnection
     $connection.ConnectionString = $connectionString
@@ -98,13 +98,13 @@ if ($schemaFile -or $patchFolder)
 {
     Try
     {
-        Check-Connection $connectionString
+        Test-SqlConnection $connectionString
         Write-Host "Database connection was established successfully"
     }
     Catch
     {
         Write-Host "Unable to establish database connection!" -ForegroundColor Red
-        Echo $_.Exception | Format-List -Force
+        Write-Host $_.Exception | Format-List -Force
 
         Exit 1
     }
@@ -129,7 +129,7 @@ if (($schemaFile -or $patchFolder) -and $useVersioning)
             create unique nonclustered index [IX__Patches_Name] on [_Patches] ([Name]);
         end"
 
-    Run-Sql $connectionString $script
+    Invoke-Sql $connectionString $script
 
     $existingPatches = Get-ExistingPatches $connectionString
 }
@@ -158,10 +158,10 @@ if ($schemaFile)
             Write-Host "Database schema script was skipped"
         }
     }
-    Catch [Exception]
+    Catch
     {
         Write-Host "Unable to execute database schema script!" -ForegroundColor Red
-        Echo $_.Exception | Format-List -Force
+        Write-Host $_.Exception | Format-List -Force
 
         Exit 1
     }
@@ -182,7 +182,7 @@ if ($patchFolder)
 
                 Write-Host "`tApplying patch: $patchFile"
 
-                Run-Sql $connectionString $script
+                Invoke-Sql $connectionString $script
 
                 if ($useVersioning)
                 {
@@ -197,10 +197,10 @@ if ($patchFolder)
 
         Write-Host "Database patching scripts were applied successfully"
     }
-    Catch [Exception]
+    Catch
     {
         Write-Host "Unable to execute database patching scripts!" -ForegroundColor Red
-        Echo $_.Exception | Format-List -Force
+        Write-Host $_.Exception | Format-List -Force
 
         Exit 1
     }

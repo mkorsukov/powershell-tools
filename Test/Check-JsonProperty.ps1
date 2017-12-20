@@ -20,7 +20,7 @@ Try
 {
     Write-Host "Checking $url..."
 
-    $info = Invoke-WebRequest $url -UseBasicParsing | ConvertFrom-Json | Select $property
+    $info = Invoke-WebRequest $url -UseBasicParsing | ConvertFrom-Json | Select-Object $property
 
     Write-Host "Value required: '$($value)', detected: '$($info.$property)'"
 
@@ -34,10 +34,10 @@ Try
 
     Exit 0
 }
-Catch [Exception]
+Catch
 {
     Write-Host "Unable to get the version information!" -ForegroundColor Red
-    Echo $_.Exception | Format-List -Force
+    Write-Host $_.Exception | Format-List -Force
 
     Exit 1
 }

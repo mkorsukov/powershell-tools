@@ -37,10 +37,10 @@ Try
 
     Exit 0
 }
-Catch [Exception]
+Catch
 {
     Write-Host "Unable to update connection string!" -ForegroundColor Red
-    Echo $_.Exception | Format-List -Force
+    Write-Host $_.Exception | Format-List -Force
 
     Exit 1
 }

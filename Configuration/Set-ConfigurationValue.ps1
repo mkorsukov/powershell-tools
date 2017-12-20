@@ -15,7 +15,7 @@ param
     [string] $value
 )
 
-function Create-MissingElement([xml] $document, [string[]] $elementNames, [string] $attributeName)
+function New-MissingElement([xml] $document, [string[]] $elementNames, [string] $attributeName)
 {
     $pathToVerify = ""
 
@@ -78,26 +78,26 @@ Try
     $document = [xml](Get-Content -LiteralPath $fileName)
     $fullPath = "$($elementNames -join "/")[string(@$attributeName)]"
     $node = $document.SelectSingleNode($fullPath)
-    $result = "updated"
+    $operationResult = "updated"
 
     if (!$node)
     {
-        $node = Create-MissingElement $document $elementNames $attributeName
-        $result = "created"
+        $node = New-MissingElement $document $elementNames $attributeName
+        $operationResult = "created"
     }
 
     $node.Attributes[$attributeName].Value = $value
     $document.Save($fileName)
 
-    Write-Host "Configuration value was successfully $result"
+    Write-Host "Configuration value was successfully $operationResult"
     Write-Host "OK" -ForegroundColor Green
 
     Exit 0
 }
-Catch [Exception]
+Catch
 {
     Write-Host "Unable to update configuration value!" -ForegroundColor Red
-    Echo $_.Exception | Format-List -Force
+    Write-Host $_.Exception | Format-List -Force
 
     Exit 1
 }
