@@ -118,7 +118,7 @@ if (!$schemaFile -and !$patchFolder)
 
 $existingPatches = @()
 
-if (($schemaFile -or $patchFolder) -and $useVersioning)
+if ($useVersioning)
 {
     Add-PatchTable $connectionString
 
