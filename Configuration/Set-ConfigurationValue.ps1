@@ -5,7 +5,7 @@ param
 (
     [Parameter(Mandatory = $true)]
     [ValidateScript({ Test-Path -Path $_ -PathType Leaf })]
-    [string] $fileName,
+    [string] $filePath,
 
     [Parameter(Mandatory = $true)]
     [ValidateScript({ $_ -match "@" })]
@@ -71,33 +71,29 @@ foreach ($part in $path.Split("/", [System.StringSplitOptions]::RemoveEmptyEntri
     }
 }
 
-Try
+try
 {
-    Write-Host "Updating $fileName..."
+    Write-Host "Updating: $filePath"
 
-    $document = [xml](Get-Content -LiteralPath $fileName)
+    $document = [xml](Get-Content -LiteralPath $filePath)
     $fullPath = "$($elementNames -join "/")[string(@$attributeName)]"
     $node = $document.SelectSingleNode($fullPath)
-    $operationResult = "updated"
 
     if (!$node)
     {
         $node = New-MissingElement $document $elementNames $attributeName
-        $operationResult = "created"
     }
 
     $node.Attributes[$attributeName].Value = $value
-    $document.Save($fileName)
+    $document.Save($filePath)
 
-    Write-Host "Configuration value was successfully $operationResult"
     Write-Host "OK" -ForegroundColor Green
 
-    Exit 0
+    exit 0
 }
-Catch
+catch
 {
-    Write-Host "Unable to update configuration value!" -ForegroundColor Red
-    Write-Host $_.Exception | Format-List -Force
+    Write-Host "Error: $_" -ForegroundColor Red
 
-    Exit 1
+    exit 1
 }

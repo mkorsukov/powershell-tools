@@ -5,7 +5,7 @@ param
 (
     [Parameter(Mandatory = $true)]
     [ValidateScript({ Test-Path -Path $_ -PathType Leaf })]
-    [string] $fileName,
+    [string] $filePath,
 
     [Parameter(Mandatory = $true)]
     [string] $connectionName,
@@ -17,30 +17,28 @@ param
 Clear-Host
 Write-Host "Connection String Updater 1.0 : Copyright (C) Maxim Korsukov : 2016-08-29" -ForegroundColor Yellow
 
-Try
+try
 {
-    Write-Host "Updating $configurationFile..."
+    Write-Host "Updating: $filePath"
 
-    $document = [xml](Get-Content -LiteralPath $fileName)
+    $document = [xml](Get-Content -LiteralPath $filePath)
     $element = $document.SelectSingleNode("configuration/connectionStrings/add[@name='$connectionName']")
 
     if (!$element)
     {
-        throw "Unable to find connection string: $connectionName"
+        throw "Unable to find connection string by name '$connectionName'"
     }
 
     $element.connectionString = $connectionString
-    $document.Save($fileName) 
+    $document.Save($filePath)
 
-    Write-Host "Connection string was successfully updated"
     Write-Host "OK" -ForegroundColor Green
 
-    Exit 0
+    exit 0
 }
-Catch
+catch
 {
-    Write-Host "Unable to update connection string!" -ForegroundColor Red
-    Write-Host $_.Exception | Format-List -Force
+    Write-Host "Error: $_" -ForegroundColor Red
 
-    Exit 1
+    exit 1
 }

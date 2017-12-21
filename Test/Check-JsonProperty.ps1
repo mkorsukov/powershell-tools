@@ -16,9 +16,9 @@ param
 Clear-Host
 Write-Host "JSON Value Checker 1.0 : Copyright (C) Maxim Korsukov : 2017-02-27" -ForegroundColor Yellow
 
-Try
+try
 {
-    Write-Host "Checking $url..."
+    Write-Host "Checking URL: $url"
 
     $info = Invoke-WebRequest $url -UseBasicParsing | ConvertFrom-Json | Select-Object $property
 
@@ -26,18 +26,16 @@ Try
 
     if ($info.$property -ne $value)
     {
-        Write-Host "Value mismatch!" -ForegroundColor Red
-        Exit 1
+        throw "Value mismatch (required: '$($value)', detected: '$($info.$property)')"
     }
 
     Write-Host "OK" -ForegroundColor Green
 
-    Exit 0
+    exit 0
 }
-Catch
+catch
 {
-    Write-Host "Unable to get the version information!" -ForegroundColor Red
-    Write-Host $_.Exception | Format-List -Force
+    Write-Host "Error: $_" -ForegroundColor Red
 
-    Exit 1
+    exit 1
 }

@@ -16,11 +16,6 @@ param
     [bool] $useVersioning = $true
 )
 
-function Test-SqlConnection([string] $connectionString)
-{
-    Run-Sql $connectionString "select @@version;"
-}
-
 function Invoke-Sql([string] $connectionString, [string] $script)
 {
     $connection = New-Object System.Data.SQLClient.SQLConnection
@@ -76,9 +71,27 @@ function Get-ExistingPatches([string] $connectionString)
     return $result
 }
 
+function Add-PatchTable([string] $connectionString)
+{
+    Invoke-Sql $connectionString "
+        if (not exists(select * from information_schema.tables where [TABLE_NAME] = N'_Patches'))
+        begin
+            create table [_Patches]
+            (
+                [ID] int identity(1,1) not null,
+                [Name] varchar(255) not null,
+                [User] varchar(255) not null,
+                [Date] datetimeoffset(0) not null,
+
+                constraint [PK__Patches_ID] primary key ([ID])
+            );
+            create unique nonclustered index [IX__Patches_Name] on [_Patches] ([Name]);
+        end"
+}
+
 function Add-PatchInfo([string] $connectionString, [string] $name)
 {
-    Run-Sql $connectionString "insert into [_Patches] ([Name], [User], [Date]) values ('$name', original_login(), sysdatetimeoffset());"
+    Invoke-Sql $connectionString "insert into [_Patches] ([Name], [User], [Date]) values ('$name', original_login(), sysdatetimeoffset());"
 }
 
 Clear-Host
@@ -94,49 +107,25 @@ if ($patchFolder -and !(Test-Path $patchFolder -PathType Container))
     throw "Specified database patch folder doesn't exist"
 }
 
-if ($schemaFile -or $patchFolder)
+if (!$schemaFile -and !$patchFolder)
 {
-    Try
-    {
-        Test-SqlConnection $connectionString
-        Write-Host "Database connection was established successfully"
-    }
-    Catch
-    {
-        Write-Host "Unable to establish database connection!" -ForegroundColor Red
-        Write-Host $_.Exception | Format-List -Force
+    Write-Host "Error: No schema file or patch folder specified" -ForegroundColor Red
 
-        Exit 1
-    }
+    exit 1
 }
 
 $existingPatches = @()
 
 if (($schemaFile -or $patchFolder) -and $useVersioning)
 {
-    $script = "
-        if (not exists(select * from information_schema.tables where [TABLE_NAME] = N'_Patches'))
-        begin
-            create table [_Patches]
-            (
-                [ID] int identity(1,1) not null,
-                [Name] varchar(255) not null,
-                [User] varchar(255) not null,
-                [Date] datetimeoffset(0) not null,
-
-                constraint [PK__Patches_ID] primary key ([ID])
-            );
-            create unique nonclustered index [IX__Patches_Name] on [_Patches] ([Name]);
-        end"
-
-    Invoke-Sql $connectionString $script
+    Add-PatchTable $connectionString
 
     $existingPatches = Get-ExistingPatches $connectionString
 }
 
 if ($schemaFile)
 {
-    Try
+    try
     {
         $scriptFile = [System.IO.Path]::GetFileName($schemaFile)
 
@@ -144,7 +133,8 @@ if ($schemaFile)
         {
             $script = Get-Content $schemaFile -Raw -Encoding UTF8
 
-            Run-Sql $connectionString $script
+            Write-Host "Applying schema: $schemaFile"
+            Invoke-Sql $connectionString $script
 
             if ($useVersioning)
             {
@@ -158,18 +148,17 @@ if ($schemaFile)
             Write-Host "Database schema script was skipped"
         }
     }
-    Catch
+    catch
     {
-        Write-Host "Unable to execute database schema script!" -ForegroundColor Red
-        Write-Host $_.Exception | Format-List -Force
+        Write-Host "Error: $_" -ForegroundColor Red
 
-        Exit 1
+        exit 1
     }
 }
 
 if ($patchFolder)
 {
-    Try
+    try
     {
         $patchFiles = Get-ChildItem -Path $patchFolder -Include "*.sql" -File -Name
 
@@ -181,7 +170,6 @@ if ($patchFolder)
                 $script = Get-Content $filePath -Raw -Encoding UTF8
 
                 Write-Host "`tApplying patch: $patchFile"
-
                 Invoke-Sql $connectionString $script
 
                 if ($useVersioning)
@@ -197,15 +185,14 @@ if ($patchFolder)
 
         Write-Host "Database patching scripts were applied successfully"
     }
-    Catch
+    catch
     {
-        Write-Host "Unable to execute database patching scripts!" -ForegroundColor Red
-        Write-Host $_.Exception | Format-List -Force
+        Write-Host "Error: $_" -ForegroundColor Red
 
-        Exit 1
+        exit 1
     }
 }
 
 Write-Host "OK" -ForegroundColor Green
 
-Exit 0
+exit 0
