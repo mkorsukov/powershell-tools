@@ -13,7 +13,7 @@ param
     [ValidateScript({ If (!$_) { Test-Path -Path $_ -PathType Container } else { $true } })]
     [string] $patchFolder = $null,
 
-    [bool] $useVersioning = $true
+    [switch] $useVersioning
 )
 
 function Invoke-Sql([string] $connectionString, [string] $script)
@@ -34,7 +34,6 @@ function Invoke-Sql([string] $connectionString, [string] $script)
             $command.CommandText = $part
 
             $command.ExecuteNonQuery() | Out-Null
-
             $command.Dispose()
         }
     }
@@ -64,7 +63,6 @@ function Get-ExistingPatches([string] $connectionString)
 
     $reader.Dispose()
     $command.Dispose()
-
     $connection.Close()
     $connection.Dispose()
 
@@ -99,12 +97,16 @@ Write-Host "Database Updater 1.0 : Copyright (C) Maxim Korsukov : 2017-10-22" -F
 
 if ($schemaFile -and !(Test-Path $schemaFile -PathType Leaf))
 {
-    throw "Specified database schema file doesn't exist"
+    Write-Host "Error: Specified database schema file doesn't exist" -ForegroundColor Red
+
+    exit 1
 }
 
 if ($patchFolder -and !(Test-Path $patchFolder -PathType Container))
 {
-    throw "Specified database patch folder doesn't exist"
+    Write-Host "Error: Specified database patch folder doesn't exist" -ForegroundColor Red
+
+    exit 1
 }
 
 if (!$schemaFile -and !$patchFolder)
@@ -133,19 +135,17 @@ if ($schemaFile)
         {
             $script = Get-Content $schemaFile -Raw -Encoding UTF8
 
-            Write-Host "Applying schema: $schemaFile"
+            Write-Host "Applying schema: $scriptFile"
             Invoke-Sql $connectionString $script
 
             if ($useVersioning)
             {
                 Add-PatchInfo $connectionString $scriptFile
             }
-
-            Write-Host "Database schema script was applied successfully"
         }
         else
         {
-            Write-Host "Database schema script was skipped"
+            Write-Host "Skipping schema: $scriptFile"
         }
     }
     catch
@@ -169,7 +169,7 @@ if ($patchFolder)
                 $filePath = Join-Path $patchFolder $patchFile
                 $script = Get-Content $filePath -Raw -Encoding UTF8
 
-                Write-Host "`tApplying patch: $patchFile"
+                Write-Host "Applying patch: $patchFile"
                 Invoke-Sql $connectionString $script
 
                 if ($useVersioning)
@@ -179,11 +179,9 @@ if ($patchFolder)
             }
             else
             {
-                Write-Host "`tSkipping patch: $patchFile"
+                Write-Host "Skipping patch: $patchFile"
             }
         }
-
-        Write-Host "Database patching scripts were applied successfully"
     }
     catch
     {
