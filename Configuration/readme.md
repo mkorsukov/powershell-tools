@@ -39,8 +39,8 @@ Web.config example:
 <configuration>
     <connectionStrings>
         <add name="Default"
-            providerName="System.Data.SqlClient"
-            connectionString="..." />
+             providerName="System.Data.SqlClient"
+             connectionString="..." />
     </connectionStrings>
 <configuration>
 ```
