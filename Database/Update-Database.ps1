@@ -22,7 +22,7 @@ function Invoke-Sql([string] $connectionString, [string] $script)
     $connection.ConnectionString = $connectionString
     $connection.Open()
 
-    $parts = $script -split "go`r`n"
+    $parts = $script -split "`r`ngo`r`n"
 
     foreach ($part in $parts)
     {
