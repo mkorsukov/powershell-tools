@@ -1,56 +1,44 @@
 # Connection String Updater
 
+[CmdletBinding()]
 param
 (
-    [string] $fileName,
+    [Parameter(Mandatory = $true)]
+    [ValidateScript({ Test-Path -Path $_ -PathType Leaf })]
+    [string] $filePath,
+
+    [Parameter(Mandatory = $true)]
     [string] $connectionName,
+
+    [Parameter(Mandatory = $true)]
     [string] $connectionString
 )
 
 Clear-Host
 Write-Host "Connection String Updater 1.0 : Copyright (C) Maxim Korsukov : 2016-08-29" -ForegroundColor Yellow
 
-if (!$fileName)
+try
 {
-    Write-Host "Required configuration file name/path is not specified" -ForegroundColor Red
-    Exit 1
-}
+    Write-Host "Updating: $filePath"
 
-if (!$connectionName)
-{
-    Write-Host "Required database connection name is not specified" -ForegroundColor Red
-    Exit 1
-}
-
-if (!$connectionString)
-{
-    Write-Host "Required database connection string is not specified" -ForegroundColor Red
-    Exit 1
-}
-
-Try
-{
-    Write-Host "Updating $configurationFile..."
-
-    $config = [xml](Get-Content -LiteralPath $fileName)
-    $element = $config.SelectSingleNode("configuration/connectionStrings/add[@name='$connectionName']")
+    $document = [xml](Get-Content -LiteralPath $filePath)
+    $element = $document.SelectSingleNode("configuration/connectionStrings/add[@name='$connectionName']")
 
     if (!$element)
     {
-        Write-Host "Unable to find connection string: $connectionName" -ForegroundColor Red
-        Exit 1
+        throw "Unable to find connection string by name '$connectionName'"
     }
 
     $element.connectionString = $connectionString
-    $config.Save($configurationFile) 
+    $document.Save($filePath)
 
-    Write-Host "Connection string was successfully updated"
     Write-Host "OK" -ForegroundColor Green
-    Exit 0
+
+    exit 0
 }
-Catch [Exception]
+catch
 {
-    Write-Host "Unable to update connection string!" -ForegroundColor Red
-    Echo $_.Exception | format-list -force
-    Exit 1
+    Write-Host "Error: $_" -ForegroundColor Red
+
+    exit 1
 }

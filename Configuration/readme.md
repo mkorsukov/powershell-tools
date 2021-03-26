@@ -23,7 +23,7 @@ Script usage example:
 
 ```powershell
 Set-ConfigurationValue.ps1
-    -fileName "Web.config"
+    -filePath "Web.config"
     -path "/configuration/system.web/httpRuntime@maxRequestLength"
     -value "524288"
 ```
@@ -39,8 +39,8 @@ Web.config example:
 <configuration>
     <connectionStrings>
         <add name="Default"
-            providerName="System.Data.SqlClient"
-            connectionString="..." />
+             providerName="System.Data.SqlClient"
+             connectionString="..." />
     </connectionStrings>
 <configuration>
 ```
@@ -49,7 +49,7 @@ Script usage example:
 
 ```powershell
 Set-ConnectionString.ps1
-    -fileName "Web.config"
+    -filePath "Web.config"
     -connectionName "Default"
     -connectionString "Data Source=tcp:localhost..."
 ```

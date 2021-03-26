@@ -18,21 +18,18 @@ param
     [string] $patchFolder = $null,
 
     [Parameter(Mandatory = $false)]
-    [bool] $useVersioning = $true
+    [bool] $useVersioning = $true,
+
+    [switch] $useVersioning
 )
 
-function Check-Connection([string] $connectionString)
-{
-    Run-Sql $connectionString "select @@version;"
-}
-
-function Run-Sql([string] $connectionString, [string] $script)
+function Invoke-Sql([string] $connectionString, [string] $script)
 {
     $connection = New-Object System.Data.SQLClient.SQLConnection
     $connection.ConnectionString = $connectionString
     $connection.Open()
 
-    $parts = $script -split "go`r`n"
+    $parts = $script -split "`r`ngo`r`n"
 
     foreach ($part in $parts)
     {
@@ -44,7 +41,6 @@ function Run-Sql([string] $connectionString, [string] $script)
             $command.CommandText = $part
 
             $command.ExecuteNonQuery() | Out-Null
-
             $command.Dispose()
         }
     }
@@ -99,14 +95,13 @@ function Get-ExistingPatches([string] $connectionString)
 
     $reader.Dispose()
     $command.Dispose()
-
     $connection.Close()
     $connection.Dispose()
 
     return $result
 }
 
-function Apply-Schema([string] $connectionString, [string] $schemaFile, [bool] $useVersioning)
+function Add-PatchTable([string] $connectionString)
 {
     $script = Get-Content $schemaFile -Raw -Encoding UTF8
 
@@ -130,49 +125,13 @@ function Apply-Schema([string] $connectionString, [string] $schemaFile, [bool] $
             end"
 
         Run-Sql $connectionString $script
-
         Run-Sql $connectionString "insert into [_Patches] ([Name], [User], [Date]) values ('$([System.IO.Path]::GetFileName($schemaFile))', original_login(), sysdatetimeoffset());"
     }
 }
 
-function Apply-Patches([string] $connectionString, [string] $patchFolder, [bool] $useVersioning)
+function Add-PatchInfo([string] $connectionString, [string] $name)
 {
-    $existingPatches = @()
-
-    if ($useVersioning)
-    {
-        if ((Get-PatchesTableExistence $connectionString) -eq 0)
-        {
-            Write-Host "Required [_Patches] database table doesn't exist" -ForegroundColor Red
-            Exit 1
-        }
-
-        $existingPatches = Get-ExistingPatches $connectionString
-    }
-
-    $patchFiles = Get-ChildItem -Path $patchFolder -Include "*.sql" -File -Name
-
-    foreach ($patchFile in $patchFiles)
-    {
-        if ($existingPatches -notcontains $patchFile)
-        {
-            $filePath = Join-Path $patchFolder $patchFile
-            $script = Get-Content $filePath -Raw -Encoding UTF8
-
-            Write-Host "`tApplying patch: $patchFile"
-
-            Run-Sql $connectionString $script
-
-            if ($useVersioning)
-            {
-                Run-Sql $connectionString "insert into [_Patches] ([Name], [User], [Date]) values ('$patchFile', original_login(), sysdatetimeoffset());"
-            }
-        }
-        else
-        {
-            Write-Host "`tSkipping patch: $patchFile"
-        }
-    }
+    Invoke-Sql $connectionString "insert into [_Patches] ([Name], [User], [Date]) values ('$name', original_login(), sysdatetimeoffset());"
 }
 
 Clear-Host
@@ -182,68 +141,100 @@ Exit 0
 
 if (!$connectionString)
 {
-    Write-Host "Required database connection string is not specified" -ForegroundColor Red
-    Exit 1
+    Write-Host "Error: Specified database schema file doesn't exist" -ForegroundColor Red
+
+    exit 1
 }
 
-if ($schemaFile -and !(Test-Path $schemaFile))
+if ($patchFolder -and !(Test-Path $patchFolder -PathType Container))
 {
-    Write-Host "Specified database schema file doesn't exist" -ForegroundColor Red
-    Exit 1
+    Write-Host "Error: Specified database patch folder doesn't exist" -ForegroundColor Red
+
+    exit 1
 }
 
-if ($patchFolder -and !(Test-Path $patchFolder))
+if (!$schemaFile -and !$patchFolder)
 {
-    Write-Host "Specified database patch folder doesn't exist" -ForegroundColor Red
-    Exit 1
+    Write-Host "Error: No schema file or patch folder specified" -ForegroundColor Red
+
+    exit 1
 }
 
-if ($schemaFile -or $patchFolder)
+$existingPatches = @()
+
+if ($useVersioning)
 {
-    Try
-    {
-        Check-Connection $connectionString
-        Write-Host "Database connection was established successfully"
-    }
-    Catch
-    {
-        Write-Host "Unable to establish database connection!" -ForegroundColor Red
-        Echo $_.Exception | format-list -force
-        Exit 1
-    }
+    Add-PatchTable $connectionString
+
+    $existingPatches = Get-ExistingPatches $connectionString
 }
 
 if ($schemaFile)
 {
-    Try
+    try
     {
-        Apply-Schema $connectionString $schemaFile $useVersioning
+        $scriptFile = [System.IO.Path]::GetFileName($schemaFile)
 
-        Write-Host "Database schema script was executed successfully"
+        if ($existingPatches -notcontains $scriptFile)
+        {
+            $script = Get-Content $schemaFile -Raw -Encoding UTF8
+
+            Write-Host "Applying schema: $scriptFile"
+            Invoke-Sql $connectionString $script
+
+            if ($useVersioning)
+            {
+                Add-PatchInfo $connectionString $scriptFile
+            }
+        }
+        else
+        {
+            Write-Host "Skipping schema: $scriptFile"
+        }
     }
-    Catch [Exception]
+    catch
     {
-        Write-Host "Unable to execute database schema script!" -ForegroundColor Red
-        Echo $_.Exception | format-list -force
-        Exit 1
+        Write-Host "Error: $_" -ForegroundColor Red
+
+        exit 1
     }
 }
 
 if ($patchFolder)
 {
-    Try
+    try
     {
-        Apply-Patches $connectionString $patchFolder $useVersioning
+        $patchFiles = Get-ChildItem -Path $patchFolder -Include "*.sql" -File -Name
 
-        Write-Host "Database patching scripts were executed successfully"
+        foreach ($patchFile in $patchFiles)
+        {
+            if ($existingPatches -notcontains $patchFile)
+            {
+                $filePath = Join-Path $patchFolder $patchFile
+                $script = Get-Content $filePath -Raw -Encoding UTF8
+
+                Write-Host "Applying patch: $patchFile"
+                Invoke-Sql $connectionString $script
+
+                if ($useVersioning)
+                {
+                    Add-PatchInfo $connectionString $patchFile
+                }
+            }
+            else
+            {
+                Write-Host "Skipping patch: $patchFile"
+            }
+        }
     }
-    Catch [Exception]
+    catch
     {
-        Write-Host "Unable to execute database patching scripts!" -ForegroundColor Red
-        Echo $_.Exception | format-list -force
-        Exit 1
+        Write-Host "Error: $_" -ForegroundColor Red
+
+        exit 1
     }
 }
 
 Write-Host "OK" -ForegroundColor Green
-Exit 0
+
+exit 0

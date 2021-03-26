@@ -15,7 +15,7 @@ param
     [string] $value
 )
 
-function Create-MissingElement([xml] $document, [string[]] $elementNames, [string] $attributeName)
+function New-MissingElement([xml] $document, [string[]] $elementNames, [string] $attributeName)
 {
     $pathToVerify = ""
 
@@ -73,33 +73,29 @@ foreach ($part in $path.Split("/", [System.StringSplitOptions]::RemoveEmptyEntri
     }
 }
 
-Try
+try
 {
-    Write-Host "Updating $fileName..."
+    Write-Host "Updating: $filePath"
 
-    $document = [xml](Get-Content -LiteralPath $fileName)
+    $document = [xml](Get-Content -LiteralPath $filePath)
     $fullPath = "$($elementNames -join "/")[string(@$attributeName)]"
     $node = $document.SelectSingleNode($fullPath)
-    $result = "updated"
 
     if (!$node)
     {
-        $node = Create-MissingElement $document $elementNames $attributeName
-        $result = "created"
+        $node = New-MissingElement $document $elementNames $attributeName
     }
 
     $node.Attributes[$attributeName].Value = $value
-    $document.Save($fileName)
+    $document.Save($filePath)
 
-    Write-Host "Configuration value was successfully $result"
     Write-Host "OK" -ForegroundColor Green
 
-    Exit 0
+    exit 0
 }
-Catch [Exception]
+catch
 {
-    Write-Host "Unable to update configuration value!" -ForegroundColor Red
-    Echo $_.Exception | format-list -force
+    Write-Host "Error: $_" -ForegroundColor Red
 
-    Exit 1
+    exit 1
 }
