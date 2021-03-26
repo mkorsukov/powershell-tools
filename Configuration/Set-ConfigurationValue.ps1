@@ -4,8 +4,8 @@
 param
 (
     [Parameter(Mandatory = $true)]
-    [ValidateScript({ Test-Path -Path $_ -PathType Leaf })]
-    [string] $filePath,
+    [ValidateScript({ Test-Path -Path $_ })]
+    [string] $fileName,
 
     [Parameter(Mandatory = $true)]
     [ValidateScript({ $_ -match "@" })]
@@ -52,12 +52,14 @@ function New-MissingElement([xml] $document, [string[]] $elementNames, [string] 
 Clear-Host
 Write-Host "Configuration Updater 1.0 : Copyright (C) Maxim Korsukov : 2017-11-10" -ForegroundColor Yellow
 
+Exit 0
+
 $elementNames = @()
 $attributeName = ""
 
 foreach ($part in $path.Split("/", [System.StringSplitOptions]::RemoveEmptyEntries))
 {
-    if (!$part.Contains("@"))
+    if ($part -notmatch "@")
     {
         $elementNames += $part
     }
